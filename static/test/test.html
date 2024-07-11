@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>World of Tanks Player Statistics</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <link rel="stylesheet" href="test.css">
+</head>
+<main>
+
+<body>
+  <div class="container">
+    <h1 class="text-center">Tournament Player Statistics</h1>
+    <div class="form-group">  
+      <label for="search">Search:</label>
+      <input id = "search" class = "form-control">
+      <label for="sort-by">Sort By:</label>
+      <select id="sort-by" class="form-control">
+        <option value="name">Name</option>
+        <option value="games">Games</option>
+        <option value="avgdmg">Avg Damage</option>
+        <option value="penrate">Penetration Rate</option>
+        <option value="winpct">Win Percentage</option>
+        <option value="avgkills">Avg Kills</option>
+      </select>
+    </div>
+    <table class="table table-dark table-striped mt-4">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Games</th>
+          <th>Avg Damage</th>
+          <th>Penetration Rate</th>
+          <th>Win Percentage</th>
+          <th>Avg Kills</th>
+        </tr>
+      </thead>
+      <tbody id="stats-table">
+        <!-- Player data will be inserted here by JavaScript -->
+      </tbody>
+    </table>
+  </div>
+  <script src="test.js"></script>
+</body>
+
+</main>
+</html>
+

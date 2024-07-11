@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Player Stats</title>
+</head>
+<body>
+    <h1>Player Statistics</h1>
+    <label for="sort-by">Sort By:</label>
+    <select id="sort-by">
+        <option value="name">Name</option>
+        <option value="avgdmg">Average Damage</option>
+        <option value="penrate">Penetration Rate</option>
+        <option value="winpct">Win Percentage</option>
+        <option value="avgkills">Average Kills</option>
+    </select>
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Average Damage</th>
+                <th>Penetration Rate</th>
+                <th>Win Percentage</th>
+                <th>Average Kills</th>
+            </tr>
+        </thead>
+        <tbody id="stats-table">
+        </tbody>
+    </table>
+
+    <script src ="stats.js"></script>
+</body>
+</html>
