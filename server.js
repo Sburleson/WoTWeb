@@ -191,7 +191,7 @@ app.post('/upload', upload.single('replay'), (req, res) => {
   });
 
 async function Analyze(){
-    const RustProcess = spawn('C:/Users/simon/Desktop/Wot_Analyzer/WoTReplay-Analyzer/parser/target/debug/WoTReplay-Analyzer.exe', ['uploads/upload.wotreplay']);
+    const RustProcess = spawn('WoTReplay-Analyzer.exe', ['uploads/upload.wotreplay']);
 
     RustProcess.stdout.on('data', (data) => {
         console.log(`Rust script stdout: ${data}`);
