@@ -10,20 +10,55 @@
 <main>
 
 <body>
+  <nav class="navbar-vertical">
+    <ul class="nav flex-column">
+        <li class="nav-item">
+            <a class="nav-link" href="#">Home</a>
+        </li>
+        <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="dropdownMenuLink" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                Dropdown
+            </a>
+            <div class="dropdown-menu" aria-labelledby="dropdownMenuLink">
+                <a class="dropdown-item" href="#">Action</a>
+                <a class="dropdown-item" href="#">Another action</a>
+                <a class="dropdown-item" href="#">Something else here</a>
+            </div>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="#">Link</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="#">Another Link</a>
+        </li>
+    </ul>
+</nav>
+
   <div class="container">
     <h1 class="text-center">Tournament Player Statistics</h1>
-    <div class="form-group">  
-      <label for="search">Search:</label>
-      <input id = "search" class = "form-control">
-      <label for="sort-by">Sort By:</label>
-      <select id="sort-by" class="form-control">
-        <option value="name">Name</option>
-        <option value="games">Games</option>
-        <option value="avgdmg">Avg Damage</option>
-        <option value="penrate">Penetration Rate</option>
-        <option value="winpct">Win Percentage</option>
-        <option value="avgkills">Avg Kills</option>
-      </select>
+    <div class="flex-container">
+      <div>
+        <label for="search">Search:</label>
+        <input id = "search" class = "form-control">
+      </div>
+      <div>
+        <label for="Tournament">Tournament:</label>
+        <select id="Tournament" class="form-control">
+          <option value="Tourny1">Tournament1</option>
+          <option value="Tourny2">Tournament2</option>
+        </select>
+      </div>
+      <div>
+        <label for="sort-by">Sort By:</label>
+        <select id="sort-by" class="form-control">
+          <option value="name">Name</option>
+          <option value="games">Games</option>
+          <option value="avgdmg">Avg Damage</option>
+          <option value="penrate">Penetration Rate</option>
+          <option value="winpct">Win Percentage</option>
+          <option value="avgkills">Avg Kills</option>
+        </select>
+      </div>
     </div>
     <table class="table table-dark table-striped mt-4">
       <thead>

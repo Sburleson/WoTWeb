@@ -26,12 +26,8 @@ function init(){
         if (e.dataTransfer.items) {
             for (let i = 0; i < e.dataTransfer.items.length; i++) {
                 const item = e.dataTransfer.items[i].webkitGetAsEntry();
-                displayItem(item.name)
-                if (item.isDirectory) {
-                    traverseFileTree(item)
-                } else {
-                    const file = e.dataTransfer.items[i].getAsFile();
-                }
+                displayItem(item.name);
+                traverseFileTree(item);
             }
         }
     });
@@ -41,7 +37,7 @@ function init(){
 async function HandelFiles(file){
     const URL = "http://localhost:8080";
     const formData = new FormData();
-    formData.append(file);
+    formData.append('replay',file);
     const response = await fetch(URL+'/upload', {
         method: 'POST',
         body: formData,

@@ -18,4 +18,37 @@ main{
   background-attachment: fixed;
   background-size: cover;
 }
+
+.navbar-vertical {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 200px;
+  padding-top: 100px;
+}
+.navbar-vertical .nav-link {
+  font-size: x-large;
+  color: rgb(226, 201, 141);
+}
+
+.navbar-vertical .nav-link:hover {
+  color: white;
+  text-decoration: underline;
+}
+
+.flex-container{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap:5%;
+}
+
+.flex-container div {
+  flex: 1; /* Allows the divs to grow and fill the available space */
+}
+
   
+.container{
+  margin-left: 200px;
+}
