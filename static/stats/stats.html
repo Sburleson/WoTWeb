@@ -1,34 +1,66 @@
-<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Player Stats</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>World of Tanks Player Statistics</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <link rel="stylesheet" href="stats.css">
 </head>
-<body>
-    <h1>Player Statistics</h1>
-    <label for="sort-by">Sort By:</label>
-    <select id="sort-by">
-        <option value="name">Name</option>
-        <option value="avgdmg">Average Damage</option>
-        <option value="penrate">Penetration Rate</option>
-        <option value="winpct">Win Percentage</option>
-        <option value="avgkills">Average Kills</option>
-    </select>
-    <table border="1">
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Average Damage</th>
-                <th>Penetration Rate</th>
-                <th>Win Percentage</th>
-                <th>Average Kills</th>
-            </tr>
-        </thead>
-        <tbody id="stats-table">
-        </tbody>
-    </table>
+<main>
 
-    <script src ="stats.js"></script>
+<body>
+  <div class="container">
+    <h1 class="text-center">Tournament Player Statistics</h1>
+    <div class="form-group">  
+      <label for="search-player">Player:</label>
+      <div style="position: relative;">
+        <input id="search-player" class="form-control" placeholder="Enter player name">
+      </div>
+
+      <label for="search-tank">Tank:</label>
+      <div style="position: relative;">
+        <input id="search-tank" class="form-control" placeholder="Enter tank name">
+      </div>
+
+      <label for="search-map">Map:</label>
+      <div style="position: relative;">
+        <input id="search-map" class="form-control" placeholder="Enter map name">
+      </div>
+
+      <label for="sort-by">Sort By Stat:</label>
+      <select id="sort-by" class="form-control">
+        <option value="avg_kills">Avg Kills</option>
+        <option value="avg_damage">Avg Damage</option>
+        <option value="avg_assist">Avg Assist</option>
+        <option value="avg_wins">Win Percentage</option>
+        <option value="avg_comp7_prestige_points">Avg Prestige Points</option>
+        <option value="games_played">Games Played</option>
+      </select>
+
+      <div id = "sort-options" class="mt-3">
+      <div class="form-check form-check-inline mt-2">
+        <input class="form-check-input" type="checkbox" id="sort-name" value="name">
+        <label class="form-check-label" for="sort-name">Sort by Player</label>
+      </div>
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="checkbox" id="sort-map" value="map">
+        <label class="form-check-label" for="sort-map">Sort by Map</label>
+      </div>
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="checkbox" id="sort-tank" value="tank">
+        <label class="form-check-label" for="sort-tank">Sort by Tank</label>
+      </div>
+    </div>
+    <table class="table table-dark table-striped mt-4">
+      <tbody id="stats-table">
+        <!-- Player data will be inserted here by JavaScript -->
+      </tbody>
+    </table>
+    <div id="pagination-controls" class="d-flex justify-content-center my-3"></div>
+  </div>
+  <script src="stats.js"></script>
 </body>
+
+</main>
 </html>
+

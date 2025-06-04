@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>World of Tanks Player Statistics</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <link rel="stylesheet" href="graphs.css">
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="graphs.js"></script>
+</head>
+<main>
+  <body>
+    <div class="container">  
+      <h1 class="text-center">Map Statistics</h1>
+
+    <div class="map_select">
+      <label for="mapSelect">Select Map:</label>
+      <select id="mapSelect">
+        <option value="None"></option>
+      </select>
+    </div>
+
+      <div id="plot" style="background-color: transparent;"></div>
+      
+    </div> 
+    <div id="controls">
+
+    <div id="positions-heatmap"></div>
+    <div id="shots-heatmap"></div>
+
+    <div class="btn-group mb-2" role="group" aria-label="Heatmap Toggle">
+    <button id="show-positions" class="btn btn-primary active">Positions</button>
+    <button id="show-shots" class="btn btn-secondary">Shots</button>
+    </div>
+      
+  </div>
+  </body>
+</main>
+</html>

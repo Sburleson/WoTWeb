@@ -1,0 +1,35 @@
+body {
+    background-color: #2e2e2e;
+    color: #fff;
+  }
+  
+  .table {
+    background-color: #3e3e3e;
+    transition: ease,color .5s, linear 1s;
+  }
+  
+  .table thead th {
+    color: #e2c98d;
+  }
+
+main{
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0) 70%, rgba(226, 201, 141, .65) 100%), url("wci_banner.png");
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  background-size: cover;
+}
+
+.autocomplete-dropdown {
+  max-height: 150px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ccc;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 1000;
+}
+.autocomplete-item:hover {
+  background: #eee;
+}

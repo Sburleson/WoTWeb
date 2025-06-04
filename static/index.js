@@ -1,96 +1,104 @@
-window.addEventListener('load', init);
-console.log("1");
-function init(){
-    console.log("init");
-    let uploadbtn = document.getElementById('dropZone');
-    console.log(uploadbtn);
-    uploadbtn.addEventListener('submit',uploadfile);
+window.addEventListener('DOMContentLoaded', () => {
+    const dropArea = document.getElementById('drop-area');
+    const fileElem = document.getElementById('fileElem');
+    const fileListDiv = dropArea.querySelector('.file-list');
+    const exportCsvBtn = document.getElementById('export-csv');
+    const uploadBtn = document.getElementById('upload-btn');
+    let filesToUpload = [];
 
-    const fileList = document.getElementById('fileList');
-
-    dropZone.addEventListener('dragover', (e) => {
+    // Drag & Drop handlers
+    dropArea.addEventListener('dragover', (e) => {
         e.preventDefault();
-        dropZone.classList.add('dragover');
+        dropArea.classList.add('dragover');
     });
 
-    dropZone.addEventListener('dragleave', () => {
-        dropZone.classList.remove('dragover');
+    dropArea.addEventListener('dragleave', () => {
+        dropArea.classList.remove('dragover');
     });
 
-    dropZone.addEventListener('drop', (e) => {
+    dropArea.addEventListener('drop', (e) => {
         e.preventDefault();
-        dropZone.classList.remove('dragover');
-
-        fileList.innerHTML = ''; // Clear previous items
-
-        if (e.dataTransfer.items) {
-            for (let i = 0; i < e.dataTransfer.items.length; i++) {
-                const item = e.dataTransfer.items[i].webkitGetAsEntry();
-                displayItem(item.name);
-                traverseFileTree(item);
-            }
-        }
+        dropArea.classList.remove('dragover');
+        console.log("Files dropped:", e.dataTransfer.files);
+        handleFiles(e.dataTransfer.files);
     });
-}
 
-
-async function HandelFiles(file){
-    const URL = "http://localhost:8080";
-    const formData = new FormData();
-    formData.append('replay',file);
-    const response = await fetch(URL+'/upload', {
-        method: 'POST',
-        body: formData,
-    })
-
-    .then((response) => {
-        console.log(response);
-    })
-    .catch((error) => {
-        console.error(error);
+    // Click-to-select handler
+    fileElem.addEventListener('change', (e) => {
+        console.log("Files selected:", e.target.files);
+        handleFiles(e.target.files);
     });
-}
 
-function traverseFileTree(item, path = '') {
-    if (item.isFile) {
-        item.file(file => {
-            HandelFiles(file);
-        });
-    } else if (item.isDirectory) {
-        const dirReader = item.createReader();
-        dirReader.readEntries(entries => {
-            for (let i = 0; i < entries.length; i++) {
-                traverseFileTree(entries[i], path + item.name + '/');
+    // Browse button triggers file input
+    dropArea.querySelector('button').addEventListener('click', () => {
+        fileElem.value = ''; // Reset so same file can be selected again
+        fileElem.click();
+    });
+
+    // Handle files (from drop or file input)
+    function handleFiles(fileList) {
+        const files = Array.from(fileList);
+        files.forEach(file => {
+            if (!filesToUpload.some(f => f.name === file.name && f.size === file.size)) {
+                filesToUpload.push(file);
+                displayFile(file);
             }
         });
     }
-}
 
-function displayItem(fileName) {
-    const fileItem = document.createElement('div');
-    fileItem.className = 'file-item';
-    fileItem.textContent = fileName;
-    fileList.appendChild(fileItem);
-}
+    // Display file in the UI
+    function displayFile(file) {
+        const div = document.createElement('div');
+        div.className = 'file-item';
+        div.textContent = file.name;
+        fileListDiv.appendChild(div);
+    }
 
-async function uploadfile(event){
-    event.preventDefault();
-    const URL = "http://localhost:8080";
-    const fileInput = document.getElementById('dropZone');
-    const formData = new FormData();
-    console.log("fileinput",fileInput.files[0]);
-    formData.append('replay', fileInput.files[0]);
-    console.log("upload button press");
-    console.log(formData);
-    const response = await fetch(URL+'/upload', {
-        method: 'POST',
-        body: formData,
-    })
+    // Upload files to backend
+    async function uploadFiles() {
+        if (filesToUpload.length === 0) {
+            alert("Please select or drop files to upload.");
+            return;
+        }
+        for (const file of filesToUpload) {
+            const formData = new FormData();
+            formData.append('replay', file);
+            try {
+                const response = await fetch('http://localhost:8080/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (!response.ok) throw new Error(`Failed to upload ${file.name}`);
+            } catch (err) {
+                alert(`Error uploading ${file.name}: ${err.message}`);
+            }
+        }
+        alert("All files uploaded successfully!");
+        filesToUpload = [];
+        fileListDiv.innerHTML = '';
+    }
 
-    .then((response) => {
-        console.log(response);
-    })
-    .catch((error) => {
-        console.error(error);
+    // Add upload on double-click or Enter on drop area
+    uploadBtn.addEventListener('click', uploadFiles);
+
+    // CSV Export handler
+    exportCsvBtn.addEventListener('click', async () => {
+        try {
+            const response = await fetch('http://localhost:8080/export-csv', {
+                method: 'GET'
+            });
+            if (!response.ok) throw new Error('Failed to export CSV');
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'player_statistics.csv';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            alert('CSV export failed: ' + err.message);
+        }
     });
-}
+});

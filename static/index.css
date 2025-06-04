@@ -1,26 +1,37 @@
-.drop-zone {
-    border: 2px dashed #ccc;
-    border-radius: 10px;
-    padding: 50px;
-    text-align: center;
-    color: #ccc;
-}
-.drop-zone.dragover {
-    background-color: #f0f0f0;
-    border-color: #333;
-    color: #333;
+/* Background and main styles from graphs.css */
+main {
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0) 70%, rgba(226, 201, 141, .65) 100%), url("wci_banner.png");
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    background-size: cover;
+    min-height: 100vh;
 }
 
+html, body {
+    background-color: #2e2e2e;
+    color: #fff;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Drop zone styles */
 .drop-zone {
     border: 2px dashed #007bff;
     border-radius: 5px;
-    padding: 20px;
+    padding: 40px;
     text-align: center;
     min-height: 200px;
     position: relative;
+    background-color: #1a1a1aa9;
+    color: #e2c98d;
 }
 .drop-zone.dragover {
     background-color: #f0f8ff;
+    border-color: #333;
+    color: #333;
 }
 .drop-zone .file-list {
     margin-top: 20px;
@@ -30,6 +41,13 @@
     margin: 5px 0;
 }
 
-label{
+label, #dropLabel {
     font-size: 30px;
+    font-weight: bold;
+    color: #e2c98d;
+}
+
+/* Optional: style the export button */
+#export-csv {
+    margin-left: 20px;
 }
