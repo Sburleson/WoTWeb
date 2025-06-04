@@ -1,32 +1,66 @@
-CREATE TABLE IF NOT EXISTS PlayerStats (
-  playerid INTEGER NOT NULL,
-  name TEXT NULL,
-  games INTEGER NULL,
-  avgdmg REAL NULL,
-  penrate REAL NULL,
-  winpct REAL NULL,
-  avgkills REAL NULL,
-  PRIMARY KEY (playerid)
+-- Games table: one row per replay/game
+CREATE TABLE games (
+    game_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    map TEXT,
+    date_played TEXT -- or other metadata
 );
 
-CREATE TABLE IF NOT EXISTS GameStats (
-  gameid INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-  tankname TEXT NULL,
-  dmg INTEGER NULL,
-  kills INTEGER NULL,
-  hits INTEGER NULL,
-  pens INTEGER NULL,
-  win INTEGER NULL,
-  playerid INTEGER NULL,
-  FOREIGN KEY (playerid) REFERENCES PlayerStats (playerid)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION
+-- Players table: one row per player
+CREATE TABLE players (
+    player_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE
 );
 
+-- Statistics table: one row per player per game
+CREATE TABLE statistics (
+    stat_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_id INTEGER,
+    player_id INTEGER,
+    tank TEXT,
+    pov INTEGER,
+    capture_points INTEGER,
+    comp7_prestige_points INTEGER,
+    damage_assisted_radio INTEGER,
+    damage_dealt INTEGER,
+    damage_recieved INTEGER,
+    direct_enemy_hits INTEGER,
+    kills INTEGER,
+    lifetime INTEGER,
+    mileage INTEGER,
+    role_skill_used INTEGER,
+    shots INTEGER,
+    spotted INTEGER,
+    team INTEGER,
+    winner_team TEXT,
+    FOREIGN KEY(game_id) REFERENCES games(game_id),
+    FOREIGN KEY(player_id) REFERENCES players(player_id)
+);
 
+-- Shots table: one row per shot, linked to game and shooter/target
+CREATE TABLE shots (
+    shot_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_id INTEGER,
+    shooter_id INTEGER,
+    target_id INTEGER,
+    x INTEGER,
+    y INTEGER,
+    z INTEGER,
+    time REAL,
+    damage INTEGER,
+    FOREIGN KEY(game_id) REFERENCES games(game_id),
+    FOREIGN KEY(shooter_id) REFERENCES players(player_id),
+    FOREIGN KEY(target_id) REFERENCES players(player_id)
+);
 
-
--- Create indexes separately as SQLite does not support `UNIQUE INDEX` within the table definition
-CREATE UNIQUE INDEX IF NOT EXISTS PlayerId_UNIQUE ON PlayerStats (playerid);
-CREATE UNIQUE INDEX IF NOT EXISTS GameId_UNIQUE ON GameStats (gameid);
-CREATE INDEX IF NOT EXISTS fk_GameStats_PlayerStats_idx ON GameStats (playerid);
+-- Positions table: one row per position, linked to game and player
+CREATE TABLE positions (
+    position_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_id INTEGER,
+    player_id INTEGER,
+    x INTEGER,
+    y INTEGER,
+    z INTEGER,
+    time REAL,
+    FOREIGN KEY(game_id) REFERENCES games(game_id),
+    FOREIGN KEY(player_id) REFERENCES players(player_id)
+);

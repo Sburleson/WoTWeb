@@ -1,196 +1,284 @@
 const fs = require('fs');
+const cors = require('cors');
 const express = require('express');
-const { get } = require('http');
 const multer = require('multer');
 const sqlite = require("sqlite");
 const sqlite3 = require("sqlite3");
 const app = express();
 const { spawn } = require('child_process');
-const fs2 = require('fs').promises;
 const path = require('path');
-const { promises: fsPromises } = require('fs');
-const { connectStorageEmulator } = require('firebase/storage');
-const { constrainedMemory } = require('process');
+const XLSX = require('xlsx');
+const { match } = require('assert');
+const importReplayJson = require('./upload.js');
 
 const port = 8080;
+app.use(cors({
+  origin: '*', // or '*' to allow all
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type'],
+}));
+
+app.get('/test-cors', (req, res) => {
+  res.json({ ok: true });
+});
+
+app.get('/player/positions', async (req, res) => {
+    const { name, map } = req.query;
+    const db = await getDBConnection();
+    let query = `
+        SELECT positions.x, positions.y, positions.z, games.map
+        FROM positions
+        JOIN games ON positions.game_id = games.game_id
+        JOIN players ON positions.player_id = players.player_id
+        WHERE players.name = ?
+    `;
+    let params = [name];
+    if (map) {
+        query += ' AND games.map = ?';
+        params.push(map);
+    }
+    db.all(query, params, (err, rows) => {
+        if (err) res.status(500).json({ error: "Database error" });
+        else res.json(rows);
+    });
+});
+
+app.get('/player/shots', async (req, res) => {
+    const { name, map } = req.query;
+    const db = await getDBConnection();
+    let query = `
+        SELECT shots.x, shots.y, shots.z, games.map
+        FROM shots
+        JOIN games ON shots.game_id = games.game_id
+        JOIN players ON shots.shooter_id = players.player_id
+        WHERE players.name = ?
+        -- AND games.map = ?   -- (optional: filter by map)
+    `;
+    let params = [name];
+    if (map) {
+        query += ' AND games.map = ?';
+        params.push(map);
+    }
+    db.all(query, params, (err, rows) => {
+        if (err) res.status(500).json({ error: "Database error" });
+        else res.json(rows);
+    });
+});
+
+app.get('/graphs', async (req, res) => {
+    const db = await getDBConnection();
+
+    if (req.query.maps) {
+        // Return list of maps from the database
+        db.all(`SELECT DISTINCT map FROM games`, [], (err, rows) => {
+            if (err) {
+                res.status(500).json({ error: "Database error" });
+            } else {
+                res.json({ maps: rows.map(r => r.map) });
+            }
+        });
+        return;
+    }
+
+    if (req.query.map) {
+        const map = req.query.map;
+        // Aggregate stats per tank for the selected map
+        const query = `
+            SELECT
+                statistics.tank AS tankname,
+                COUNT(*) AS games_played,
+                AVG(statistics.winner_team = statistics.team) * 100 AS win_percentage,
+                AVG(statistics.comp7_prestige_points) AS average_comp7PrestigePoints,
+                COUNT(*) * 1.0 / (SELECT COUNT(*) FROM statistics WHERE game_id IN (SELECT game_id FROM games WHERE map = ?)) AS pickrate
+            FROM statistics
+            JOIN games ON statistics.game_id = games.game_id
+            WHERE games.map = ?
+            GROUP BY statistics.tank
+        `;
+        db.all(query, [map, map], (err, rows) => {
+            if (err) {
+                res.status(500).json({ error: "Database error" });
+            } else {
+                // Convert to the expected frontend format (tankname as key)
+                const result = {};
+                rows.forEach(row => {
+                    result[row.tankname] = {
+                        win_percentage: row.win_percentage,
+                        average_comp7PrestigePoints: row.average_comp7PrestigePoints,
+                        pickrate: row.pickrate
+                    };
+                });
+                res.json(result);
+            }
+        });
+        return;
+    }
+
+    res.status(400).json({ error: "Missing required query parameter" });
+});
+
+app.get('/API', async (req, res) => {
+    const { name, sort_by } = req.query;
+    const validColumns = ['tankname', 'map'];
+    const db = await getDBConnection();
+
+    // Validate sort_by
+    const sortColumn = validColumns.includes(sort_by) ? sort_by : 'tankname';
+
+    // Build query
+    let query = `SELECT * FROM MapStats`;
+    let params = [];
+
+    if (name) {
+        query += ` WHERE LOWER(tankname) LIKE ?`;
+        params.push(`${name.toLowerCase()}%`);
+    }
+
+    query += ` ORDER BY ${sortColumn} DESC`;
+
+    try {
+        const statement = await db.prepare(query);
+        const rows = await statement.all(...params);
+        await statement.finalize();
+        res.json(rows);
+    } catch (error) {
+        console.error("Error fetching player stats:", error);
+        res.status(500).json({ error: "Database error" });
+    }
+});
+
+app.get('/autocomplete/player', async (req, res) => {
+  const { q } = req.query;
+  const db = await getDBConnection();
+  db.all(
+    `SELECT name FROM players WHERE name LIKE ? LIMIT 3`,
+    [`${q}%`],
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: "Database error" });
+      res.json(rows.map(r => r.name));
+    }
+  );
+});
+
+app.get('/autocomplete/tank', async (req, res) => {
+    console.log("autocomplete tank");
+    const { q } = req.query;
+    const db = await getDBConnection();
+    db.all(
+        `SELECT DISTINCT tank FROM statistics WHERE tank LIKE ? LIMIT 3`,
+        [`${q}%`],
+        (err, rows) => {
+        if (err) return res.status(500).json({ error: "Database error" });
+        console.log("rows:", rows);
+        res.json(rows.map(r => r.tank));
+        }
+    );
+});
+
+app.get('/autocomplete/map', async (req, res) => {
+  const { q } = req.query;
+  const db = await getDBConnection();
+  db.all(
+    `SELECT DISTINCT map FROM games WHERE map LIKE ? LIMIT 3`,
+    [`${q}%`],
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: "Database error" });
+      res.json(rows.map(r => r.map));
+    }
+  );
+});
+
+app.get('/stats', async (req, res) => {
+  const { name, tank, map, sort_by } = req.query;
+  let sortColumns = (sort_by || 'name').split(',').map(s => s.trim()).filter(Boolean);
+  let validSorts = [
+    'name', 'tank', 'map', 'avg_kills', 'avg_damage', 'avg_wins', 'avg_comp7_prestige_points', 'avg_lifetime', 'games_played'
+  ];
+  let orderBy = sortColumns.filter(col => validSorts.includes(col)).join(', ');
+  if (!orderBy) orderBy = 'name';
+
+  const db = await getDBConnection();
+  let query = `
+    SELECT 
+      players.name,
+      statistics.tank,
+      games.map,
+      COUNT(*) AS games_played,
+      AVG(statistics.kills) AS avg_kills,
+      AVG(statistics.damage_dealt) AS avg_damage,
+      AVG(CASE WHEN statistics.winner_team = statistics.team THEN 1 ELSE 0 END) AS avg_wins,
+      AVG(statistics.comp7_prestige_points) AS avg_comp7_prestige_points,
+      AVG(statistics.lifetime) AS avg_lifetime
+    FROM statistics
+    JOIN players ON statistics.player_id = players.player_id
+    JOIN games ON statistics.game_id = games.game_id
+    WHERE 1=1
+  `;
+  let params = [];
+  if (name) {
+    query += ` AND LOWER(players.name) LIKE ?`;
+    params.push(`${name.toLowerCase()}%`);
+  }
+  if (tank) {
+    query += ` AND statistics.tank = ?`;
+    params.push(tank);
+  }
+  if (map) {
+    query += ` AND games.map = ?`;
+    params.push(map);
+  }
+  query += ` GROUP BY players.name, statistics.tank, games.map ORDER BY ${orderBy} DESC`;
+
+  db.all(query, params, (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: "Database error" });
+      console.error("Error fetching stats:", err);
+    } else {
+      res.json(rows);
+    }
+  });
+});
+
 app.use(express.urlencoded({extended: true}));
 app.use(express.json());
 app.use(express.static('static'));
 
-function getPlayers(data) {
-    // using 2 part json. data = data2.json
-    // const playersList = data[0]["players"];
-    try {
-        const playersList = data[0]["players"];
-        //console.log("plist",playersList);
-        const players = [];
-        for (const x in playersList) {
-            let name = playersList[x]["name"];
-            //let realname = playersList[x]["realName"];
-            players.push(name);
-        }
-        //console.log("players", players)
-        return players;
-    } catch (error) {
-        console.log("in GetPlayers:",error);
-    }
-}
-
-function getSessionID(playerList, name,data) {
-    try {
-        const seshIDList = data[1];
-    for (const x in playerList) {
-        for (const y in seshIDList) {
-            if (seshIDList[y]["fakeName"] == name) {
-                return seshIDList[y]["avatarSessionID"];
-            }
-        }
-    }
-
-    } catch (error) {
-        console.log("in GetSessionID:",error);
-    }
-}
-
-function getTank(seshID,data) {
-    try {
-        let tank = data[1][seshID].vehicleType;
-        const pattern = /^[^_]+_(.*)/;
-        let match = tank.match(pattern);
-        tank = match[1];
-        return tank;  
-        
-    } catch (error) {
-        console.log("error in getTank",error);
-    }
-    
-}
-
-function getPerformance(seshID,data) {
-    let perf = data[0]['vehicles'][seshID];
-    return perf;
-}
-
-function getDamage(performance) {
-    return performance[0]['damageDealt'];
-}
-
-function getPenrate(performance) {
-    const hits = performance[0]['directEnemyHits'];
-    const pens = performance[0]['piercings'];
-    return [hits, pens];
-}
-
-function getKills(performance) {
-    return performance[0]['kills'];
-}
-
-function getWin(data,performance){
-    const winTeam = data[0]['common']['winnerTeam'];
-    const onTeam = performance[0]['team'];
-    if(winTeam == onTeam){
-        return 1;
-    }
-    else{
-        return 0;
-    }
-}
-
-function getRealName(name,data){
-    players = data[0].players;
-    for( x in players){
-        if(name == players[x].name){
-            console.log(players[x].realName);
-            return players[x].realName;
-        }
-    }
-}
-
-function getDBID(data, seshID){
-    return data[0]['vehicles'][seshID][0]["accountDBID"];
-}
-
-function createTankers(players,data) {
-    try {
-        let tankers = [];
-        for (let x in players) {
-            let name = players[x];
-            let ID = getSessionID(players,name,data);
-            let tank = getTank(ID,data);
-            let perf = getPerformance(ID,data);
-            let damage = getDamage(perf);
-            let shots = getPenrate(perf);
-            let hits = shots[0]; // wouldnt let me do hits,pens = genPenrate();
-            let pens = shots[1];
-            let kills = getKills(perf);
-            let win = getWin(data,perf);
-            let realname = getRealName(name,data);
-            ID = getDBID(data, ID);
-            name = realname;
-            const T = new Player(name, tank, damage, hits, pens, kills, win, ID);
-            tankers.push(T);
-        }
-        return tankers;
-    } catch (error) {
-        console.log("error in createTankers:",error)
-    }
-}
-
-class Player {
-    constructor(name, tank, damage, hits,pens, kills, win,ID) {
-        this.name = name;
-        this.tank = tank;
-        this.damage = damage;
-        this.hits = hits;
-        this.pens = pens;
-        this.kills = kills;
-        this.win = win
-        this.ID = ID
-    }
-}
-
-// start of main:
-
-const jsonFilePath = 'data2.json';
-
-async function checkFileExists(fileName) {
-    return new Promise((resolve, reject) => {
-        const watcher = fs.watch(process.cwd()+"/data",{persistent:true},(eventType, filename) => {
-            console.log("IN WATCHER:",fileName);
-            if (filename === fileName) {
-                console.log("File found!");
-                watcher.close();
-                resolve();
-            }
-        });
-
-        watcher.on('error', (error) => {
-            reject(error);
-        });
-    });
-}
-
 const storage = multer.diskStorage({
-    destination: 'uploads/', // Destination directory for uploaded files
+    destination: 'Replays/', // Destination directory for uploaded files
+    filename: (req, file, cb) => {
+        cb(null, file.originalname); // Use the original file name
+    }
 });
 const upload = multer({ storage: storage });
 
-app.post('/upload', upload.array('replay'), async(req, res) => {
-    console.log('Type of res.headersSent after file upload:', typeof res.headersSent);
-    console.log(req.files); // Log file information
+app.post('/upload', upload.array('replay'), async (req, res) => {
     if (req.files) {
         try {
-            await Promise.all(req.files.map(file => Analyze(file.filename)));
+            // Process each uploaded replay file
+            for (const file of req.files) {
+                await Analyze(file.filename, req.body.event_name);
+                console.log(`Processed file:`);
+            }
             res.json({ message: 'File(s) uploaded and processed successfully' });
         } catch (error) {
+            console.log("Error processing files:", error);
             res.status(500).json({ error: 'Error processing files' });
         }
     } else {
         res.status(400).json({ error: 'File upload failed' });
     }
-    
     CleanUp();
-  });
+});
+
+app.post('/deleteStats',async(req, res) => {
+    deleteStats();
+    res.json({ message: 'Stats Deleted' })
+});
+
+app.post('/ExcelExport',async(req, res) => {
+    ExportStats();
+    res.json({ message: 'Stats Exported' })
+});
 
 function wait(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -198,7 +286,7 @@ function wait(ms) {
 
 function CleanUp(){
     DataFolder = process.cwd()+"/data"
-    UploadFolder = process.cwd()+"/uploads"
+    UploadFolder = process.cwd()+"/Replays"
 
     fs.readdir(DataFolder, (err, files) => {
         if (err) {
@@ -239,11 +327,11 @@ function CleanUp(){
     });
 }
 
-function Analyze(replay) {
+function Analyze(replay, Eventname) {
+    console.log("CWD", process.cwd());
     console.log("FILEEEEE:", replay);
     return new Promise((resolve, reject) => {
-        const RustProcess = spawn(process.cwd()+'/WoTReplay-Analyzer-v2.exe', [`uploads/${replay}`]);
-        console.log(process.cwd()+'WoTReplay-Analyzer-v2.exe');
+        const RustProcess = spawn(process.cwd() + '/Movement.exe', [replay]);
         RustProcess.stdout.on('data', (data) => {
             console.log(`Rust script stdout: ${data}`);
         });
@@ -253,53 +341,23 @@ function Analyze(replay) {
         });
 
         RustProcess.on('close', async (code) => {
-            console.log(`File ${replay}Rust script process exited with code ${code}`);
+            console.log(`File ${replay} Rust script process exited with code ${code}`);
             if (code === 0) {
                 try {
-                    const sourceFolder = __dirname;  // Folder where JSON files are generated
-                    const destFolder = __dirname+'/data';  // Destination folder
-                    fs.readdir(sourceFolder, (err, files) => {
-                        if (err) {
-                          console.error(`Error reading source folder: ${err.message}`);
-                          return;
-                        }
-                    
-                        // Filter .json files
-                        const jsonFiles = files.filter(file => 
-                            file.startsWith(replay) && path.extname(file) === '.json'
-                          );
-                    
-                        jsonFiles.forEach(file => {
-                          const sourceFile = path.join(sourceFolder, file);
-                          const destFile = path.join(destFolder, file);
-                    
-                          // Move file to destination folder
-                          fs.rename(sourceFile, destFile, (err) => {
-                            if (err) {
-                              console.error(`Error moving file: ${err.message}`);
-                            } else {
-                              console.log(`Moved: ${file}`);
-                            }
-                          });
-                        });
-                    });
+                    // Use the same directory as the replay file
 
-                    console.log("Waiting for file to exist...");
-                    DataPath = `${replay}data2.json`;
-                    console.log("looking for data:",DataPath);
-                    await checkFileExists(DataPath);
-                    console.log("File exists, reading...");
-                    console.log(process.cwd()+"/data"+DataPath);
-                    const json = await fsPromises.readFile(process.cwd()+"/data/"+DataPath, 'utf8');
-                    const data = JSON.parse(json);
-                    const players = getPlayers(data);
-                    const tankers = createTankers(players, data);
-                    console.log(tankers);
-                    await insertData(tankers);
-                    //await fs.promises.unlink(`uploads/${replay}`);
-                    resolve(); // Resolve once everything completes
+                    const jsonPath = process.cwd()+'/Out/'+ replay+'.json'
+                    console.log(`Looking for JSON file at: ${jsonPath}`);
+                    if (fs.existsSync(jsonPath)) {
+                        console.log(`JSON file found: ${jsonPath}`);
+                        await importReplayJson(jsonPath);
+                        console.log(`Imported JSON: ${jsonPath}`);
+                        resolve();
+                    } else {
+                        reject(new Error(`JSON file not found: ${jsonPath}`));
+                    }
                 } catch (error) {
-                    reject(error); // Reject if any errors occur
+                    reject(error);
                 }
             } else {
                 reject(new Error(`Rust script exited with code ${code}`));
@@ -308,20 +366,29 @@ function Analyze(replay) {
     });
 }
 
-// DB part
-async function getDBConnection() {
-    const db = await sqlite.open({
-        filename: 'WOT.db',
-        driver: sqlite3.Database
-    });
 
-    return db;
+
+async function getDBConnection() {
+    try {
+        const db = new sqlite3.Database('WOT.db', (err) => {
+            if (err) {
+                console.error('Error opening database:', err);
+            } else {
+                console.log('Database connection successful!');
+            }
+        });
+        return db;
+    } catch (err) {
+        console.error('Error connecting to database:', err);
+        throw err;
+    }
 }
 
 async function calcAVG(id){
     const db = await getDBConnection();
     const query = `SELECT Count(DISTINCT gameid) as Games,
     AVG(dmg) as AVGdmg,
+    AVG(assist) as AVGassist,
     AVG(kills) as AVGkills,
     (AVG(pens) / AVG(hits) *100) as AVGpenrate,
     (AVG(win)*100) as winrate
@@ -333,15 +400,19 @@ async function calcAVG(id){
         await statement.finalize();
    
         const query2 = `UPDATE PlayerStats
-        SET games=?,avgdmg=?, penrate=?, winpct=?, avgkills=?
+        SET games=?,avgdmg=?,avgassist=?, penrate=?, winpct=?, avgkills=?
         WHERE playerid=?`;
         
         const statement2 = await db.prepare(query2);
         if(result[0].AVGpenrate == null){
             result[0].AVGpenrate = 0.0;
         }
+        if(result[0].AVGassist == null){
+            result[0].AVGassist = 0.0;
+        }
         await statement2.all(result[0].Games,
              result[0].AVGdmg.toFixed(2),
+             result[0].AVGassist.toFixed(2),
              result[0].AVGpenrate.toFixed(2),
              result[0].winrate.toFixed(2),
              result[0].AVGkills.toFixed(2),
@@ -351,106 +422,87 @@ async function calcAVG(id){
         console.log("error in calcAVG",error);
     }
 }
-async function insertData(tankers){
-    const db = await getDBConnection();
-    const query1 = 'INSERT INTO PlayerStats (playerid,name) VALUES(?,?)';
-    const query2  = 'INSERT INTO GameStats (tankname,dmg,kills,hits,pens,win,playerid) VALUES (?,?,?,?,?,?,?)';
-    const uniquequery = 'Select playerid from PlayerStats where playerid = ?';
+
+
+async function addEvent(Eventname) {
+    const db = await getDBConnection2(); // Ensure you're getting the DB connection correctly
+    const eventquery = 'INSERT INTO Events (name) VALUES(?)';
+    
     try {
-        
-        for (const t of tankers) {
-            const statement = await db.prepare(uniquequery);
-            let res = await statement.all(t.ID);
-            await statement.finalize();
-            console.log("qc",res[0]);
-            if(res[0] == null){
-            //if player isnt in playerstats, add them
-            console.log("qcheck");
-            const statement1 = await db.prepare(query1);
-            await statement1.run(t.ID, t.name);
-            await statement1.finalize();
-            }
+        console.log('Start db.prepare()');
+        // Return a Promise that resolves with this.lastID
+        return new Promise((resolve, reject) => {
+            const stmt = db.prepare(eventquery);
 
-        
-            const statement2 = await db.prepare(query2);
-            console.log(t.tank, t.damage, t.kills,t.hits,t.pens,t.win, t.ID);
-            await statement2.run(t.tank, t.damage, t.kills,t.hits,t.pens,t.win, t.ID);
-            await statement2.finalize();
+            stmt.run([Eventname], function (err) {
+                if (err) {
+                    console.error('Error inside stmt.run:', err);
+                    reject('Error inserting event: ' + err.message);  // Reject if error occurs
+                } else {
+                    console.log('Event added with event_id:', this.lastID);
+                    resolve(this.lastID);  // Resolve the promise with the event_id (this.lastID)
+                }
+            });
 
-            calcAVG(t.ID);
-            console.log("finished upload");
+            stmt.finalize();  // Properly finalize the statement
+        });
+    } catch (err) {
+        console.error("Error in addEvent:", err);
+        throw err;  // Re-throw error if any issues arise
+    } finally {
+        db.close();  // Close the DB connection
+    }
+}
+
+async function deleteStats() {
+    const db = await getDBConnection2(); // Assuming this is your method to get a DB connection
+    
+    try {
+        await db.run("DELETE FROM PlayerStats;");
+        await db.run("DELETE FROM GameStats;");
+        await db.run("DELETE FROM Events;");
+       
+        console.log("Deleted all stats");
+    } catch (err) {
+        console.error("Error deleting stats:", err);
+    } finally {
+        await db.close();
+    }
+}
+
+async function ExportStats(){
+    console.log("start export");
+    const db = await getDBConnection();
+    const wb = XLSX.utils.book_new();
+    const tableName = 'PlayerStats';
+    db.all(`SELECT * FROM ${tableName}`, (err, rows) => {
+        if (err) {
+            console.error(`Error reading table ${tableName}:`, err.message);
+            return;
         }
 
-    } catch (error) {
-        console.log("error in insertData",error);
-    }
+        // Convert rows into an Excel-compatible worksheet
+        const ws = XLSX.utils.json_to_sheet(rows);
+
+        // Append the worksheet to the workbook
+        XLSX.utils.book_append_sheet(wb, ws, tableName);
+    });
+
+    db.close((err) => {
+        if (err) {
+            console.error('Error closing database:', err.message);
+            return;
+        }
+
+        // Write the Excel file to the disk
+        const outputFileName = 'output.xlsx';
+        XLSX.writeFile(wb, outputFileName);
+        console.log(`SQLite database has been converted to Excel: ${outputFileName}`);
+    });
 }
-
-
-app.get('/stats', async (req, res) => {
-    const sortBy = req.query.sort_by;
-    console.log("recieved stat req", sortBy);
-    const data = await getSortedPlayerStats(sortBy);
-    console.log(data[0]);
-    res.json(data);
-  });
-
-app.get('/test', async (req, res) => {
-const sortBy = req.query.sort_by;
-const name = req.query.name;
-console.log("recieved stat req test", sortBy);
-console.log("recieved stat req test2", name);
-let data = [];
-if(name != null){
-    data = await getPlayerStatByName(name);
-}else{
-    data = await getSortedPlayerStats(sortBy);
-}
-console.log(data[0]);
-res.json(data);
-});
-
-async function getStats(name,sortBy){
-    const db = await getDBConnection();
-    console.log('in getStats');
-    const regex = `${name}%`;
-    let base = `SELECT * from PlayerStats`;
-    let sort =`ORDER BY ${sortBy}`;
-    let filter = ``;
-    if(name != null){
-       filter = `where LOWER(name) Like`+regex;
-    }
-    query = base+filter+sort;
-}
-
-async function getPlayerStatByName(name){
-    const db = await getDBConnection();
-    console.log('in search part');
-    const regex = `${name}%`;
-    const namequery = `SELECT * from PlayerStats where LOWER(name) LIKE ? LIMIT 5`;
-    let nameres =  await db.all(namequery,regex);
-    console.log("search res:", nameres);
-    return nameres;
-}
-
-async function getSortedPlayerStats(sortBy) {
-    const validColumns = ['name','games', 'avgdmg', 'penrate', 'winpct', 'avgkills'];
-    const db = await getDBConnection();
-
-    if (!validColumns.includes(sortBy)) {
-        return callback(new Error('Invalid sort field'), null);
-    }
-    else{
-        console.log("in getsorted")
-        const query = `SELECT * FROM PlayerStats ORDER BY ${sortBy} DESC`;
-        const statement = await db.prepare(query);
-        let res = await statement.all();
-        await statement.finalize();
-        return res;
-    }
-  }
 
 
 app.listen(port, () => {
+    CleanUp();
     console.log(`Server is running on http://localhost:${port}`);
   });
